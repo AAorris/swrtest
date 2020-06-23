@@ -1,30 +1,50 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Testing SWR
 
-## Getting Started
+Let's test https://swr.now.sh/ and the way that `stale-while-revalidate` works, using Vercel.
 
-First, run the development server:
+## The SWR Library
 
-```bash
-npm run dev
-# or
-yarn dev
-```
+The SWR library is a react hook that allows you to present stale content, and re-rendering when fresh content is available.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+You provide it an asynchronous function, and it will run it at configured points, like on component mount, on focus changes, or at a regular interval using a comparison mechanism you provide. It's a handy tool, but it doesn't actually have anything to do with `stale-while-revalidate` directives in HTTP requests and responses.
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+## Stale while revalidate in Vercel APIs
 
-## Learn More
+HTTP has the `cache-control` header. It can be used in these ways:
 
-To learn more about Next.js, take a look at the following resources:
+### Cache-Control in Requests
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `max-age` Define how long cached data is valid ("fresh") for
+- `min-fresh` The response should be "fresh" for at least this many more seconds
+- `max-stale` Define how far past "fresh" a response can be
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+### Cache-Control in Responses
 
-## Deploy on Vercel
+- `public` Allow responses to be cached by clients or servers
+- `max-age` How long a response is considered "fresh"
+- `must-revalidate` Indicates that a client must check that their data is up to date when stale
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/import?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Responses may also provide an `age` header in the response with how old the cached data is.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+### Default values in Vercel
+
+API responses provide `Cache-Control: public max-age=0 must-revalidate` which means that responses should be considered immediately stale, and clients should make another request before using stale data. That means no caching of API responses.
+
+Vercel's built in fetch command doesn't do anything special with `Cache-Control` - Nothing is sent unless you tell it to.
+
+### s-maxage stale-while-revalidate
+
+Vercel's [Caching Documentation](https://vercel.com/docs/v2/edge-network/caching#stale-while-revalidate) indicates that you can provide a `Cache-Control` header in your responses.
+
+They recommend `Cache-Control: s-maxage=1, stale-while-revalidate`. This will cause the following to happen:
+
+- When a request is made, Vercel will cache the response to their CDN
+- For one second after, all requests will be from the cache
+- After one second, the next request will respond with stale cached data
+- After responding with cached data, Vercel will make another request in the background and update the CDN
+
+With this approach, slow-to-fetch endpoints are always fast. The only time a user would wait more than a few milliseconds for a response is right after a deployment.
+
+## This Repository
+
+This repository sets `s-maxage` in API responses, with different max ages. You can refresh the page and see that requests to a Vercel deployment are fast, but during local development responses always take at least one second. To handle that delay while looking fast, the `SWR` library's React hook is used to present a placeholder and replace it when the request is done.
