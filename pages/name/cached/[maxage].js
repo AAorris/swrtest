@@ -1,7 +1,34 @@
-import Head from 'next/head'
-import Link from 'next/link'
+import Head from "next/head";
+import {useRouter} from "next/router";
+// import { useEffect } from "react";
+import useSWR from "swr";
+import { useEffect, useState } from "react";
 
-export default function Home() {
+const fetchAndCacheField = attr => async url => {
+  const resp = await fetch(url)
+  const result = await resp.json()
+  localStorage.setItem(attr, result[attr])
+  return result
+}
+
+const getStoredKey = (key, fallback) => {
+  try {
+    return localStorage.getItem(key)
+  } catch(e) {
+    return fallback
+  }
+}
+
+export default function CachedPage() {
+  const router = useRouter()
+  const maxage = parseInt(router.query.maxage, 10)
+  let key = isNaN(maxage) ? null : `/api/name/cached/${maxage}`
+  const field = 'name'
+  const { data, isValidating, mutate } = useSWR(
+    key,
+    fetchAndCacheField(field),
+    {revalidateOnFocus: false, revalidateOnMount: true, initialData: {name: getStoredKey(field, '')}}
+  )
 
   return (
     <div className="container">
@@ -11,15 +38,7 @@ export default function Home() {
       </Head>
 
       <main>
-          <div className="card"><Link href="/name/cached/[maxage]" as="/name/cached/1">
-            <a>API with max-age header of 1</a>
-          </Link></div>
-          <div className="card"><Link href="/name/cached/[maxage]" as="/name/cached/10">
-            <a>API with max-age header of 10</a>
-          </Link></div>
-          <div className="card"><Link href="/name/cached/[maxage]" as="/name/cached/100">
-            <a>API with max-age header of 100</a>
-          </Link></div>
+        <h1 className="title">Hello {data.name}</h1>
       </main>
 
       <footer>
@@ -28,7 +47,7 @@ export default function Home() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Powered by{' '}
+          Powered by{" "}
           <img src="/vercel.svg" alt="Vercel Logo" className="logo" />
         </a>
       </footer>
@@ -76,50 +95,14 @@ export default function Home() {
           text-decoration: none;
         }
 
-        .title a {
-          color: #0070f3;
-          text-decoration: none;
-        }
-
-        .title a:hover,
-        .title a:focus,
-        .title a:active {
-          text-decoration: underline;
-        }
-
         .title {
           margin: 0;
           line-height: 1.15;
           font-size: 4rem;
         }
 
-        .title,
-        .description {
+        .title {
           text-align: center;
-        }
-
-        .description {
-          line-height: 1.5;
-          font-size: 1.5rem;
-        }
-
-        code {
-          background: #fafafa;
-          border-radius: 5px;
-          padding: 0.75rem;
-          font-size: 1.1rem;
-          font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-            DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-        }
-
-        .grid {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: wrap;
-
-          max-width: 800px;
-          margin-top: 3rem;
         }
 
         .card {
@@ -179,5 +162,5 @@ export default function Home() {
         }
       `}</style>
     </div>
-  )
+  );
 }
